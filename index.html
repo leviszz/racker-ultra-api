@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Racker Ultra</title>
+
+<style>
+body {
+    background: black;
+    color: white;
+    font-family: Arial;
+}
+
+h1 {
+    color: yellow;
+    border: 4px solid yellow;
+    padding: 15px;
+    text-align: center;
+    box-shadow: 0 0 15px yellow;
+}
+
+table {
+    margin: 40px auto;
+    border-collapse: separate;
+    border-spacing: 8px;
+}
+
+th, td {
+    border: 2px solid yellow;
+    padding: 12px;
+    text-align: center;
+}
+
+th {
+    color: yellow;
+}
+</style>
+</head>
+
+<body>
+
+<h1>TRADER CRIPTO BOSS – RACKER ULTRA (TURBO)</h1>
+
+<table>
+<thead>
+<tr>
+    <th>Par</th>
+    <th>Efeito</th>
+    <th>TF</th>
+    <th>Perigo</th>
+    <th>Pilha</th>
+    <th>Variação</th>
+</tr>
+</thead>
+<tbody id="tabela">
+<tr>
+    <td colspan="6">Aguardando dados...</td>
+</tr>
+</tbody>
+</table>
+
+<script>
+console.log("JS carregado");
+
+fetch("http://127.0.0.1:8000/scan")
+.then(res => {
+    console.log("Resposta recebida");
+    return res.json();
+})
+.then(data => {
+    console.log("JSON:", data);
+
+    const tbody = document.getElementById("tabela");
+    tbody.innerHTML = "";
+
+    if (!data.resultados || data.resultados.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='6'>Nenhum sinal</td></tr>";
+        return;
+    }
+
+    data.resultados.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td>${r.par}</td>
+            <td>${r.efeito}</td>
+            <td>${r.tf}</td>
+            <td>${r.perigo}</td>
+            <td>${r.pilha}</td>
+            <td>${r.variacao}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+})
+.catch(err => {
+    console.error("ERRO:", err);
+    document.getElementById("tabela").innerHTML =
+        "<tr><td colspan='6'>Erro ao buscar API</td></tr>";
+});
+</script>
+
+</body>
+</html>
