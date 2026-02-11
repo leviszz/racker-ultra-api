@@ -3,3 +3,8 @@ uvicorn[standard]>=0.29
 requests
 pandas
 numpy
+sqlalchemy
+asyncpg
+fastapi-users[sqlalchemy]
+passlib[bcrypt]
+python-jose
