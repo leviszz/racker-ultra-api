@@ -1,21 +1,14 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-import requests, pandas as pd
-import warnings
+import requests
+import pandas as pd
 from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from requests.adapters import HTTPAdapter
+from fastapi import APIRouter
+import warnings
 
 warnings.filterwarnings("ignore")
 
-app = FastAPI(title="Racker Ultra PRO Turbo", version="17.0")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+router = APIRouter()
 
 # ================= CONFIG ================= #
 @dataclass
@@ -113,8 +106,8 @@ def analyze_symbol(sym, c_map):
             })
     return results
 
-# ================= ENDPOINT ================= #
-@app.get("/scan")
+
+@router.get("/scan")
 def scan():
     ticker = get_json(f"{BASE_URL}/openApi/swap/v2/quote/ticker").get("data", [])
     if not ticker:
