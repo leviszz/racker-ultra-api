@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.schemas import UserRead, UserCreate, UserUpdate
 
 from app.scan import router as scan_router
 from app.users import fastapi_users, auth_backend
@@ -27,8 +28,13 @@ app.include_router(
     tags=["auth"],
 )
 
+
+
 app.include_router(
-    fastapi_users.get_users_router(),
+    fastapi_users.get_users_router(
+        UserRead,
+        UserUpdate,
+    ),
     prefix="/users",
     tags=["users"],
 )
