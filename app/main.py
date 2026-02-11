@@ -44,3 +44,37 @@ app.include_router(
 async def on_startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+
+from fastapi import Depends, HTTPException
+from app.users import get_user_manager
+from fastapi_users.manager import BaseUserManager
+from app.models import User
+import uuid
+
+ADMIN_SECRET = "MINHA_CHAVE_ADMIN_SUPER_SECRETA"
+
+
+@app.post("/admin/create-user")
+async def create_user_admin(
+    email: str,
+    password: str,
+    admin_secret: str,
+    user_manager=Depends(get_user_manager),
+):
+    if admin_secret != ADMIN_SECRET:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    try:
+        user = await user_manager.create(
+            {
+                "email": email,
+                "password": password,
+                "is_active": True,
+                "is_verified": True,
+            }
+        )
+        return {"status": "created", "email": user.email}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
