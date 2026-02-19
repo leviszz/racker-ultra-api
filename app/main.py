@@ -8,6 +8,7 @@ from app.models import User
 
 from app.db import engine, Base
 import asyncio
+import os
 
 app = FastAPI(title="Racker Ultra PRO Turbo", version="17.0")
 
@@ -39,6 +40,23 @@ app.include_router(
     tags=["users"],
 )
 
+app.include_router(
+    fastapi_users.get_reset_password_router(),
+    prefix="/auth",
+    tags=["auth"],
+)
+
+
+from sqlalchemy import select
+from app.db import AsyncSessionLocal
+
+
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate),
+    prefix="/auth",
+    tags=["auth"],
+)
+
 
 @app.on_event("startup")
 async def on_startup():
@@ -53,28 +71,34 @@ from fastapi_users.manager import BaseUserManager
 from app.models import User
 import uuid
 
-ADMIN_SECRET = "MINHA_CHAVE_ADMIN_SUPER_SECRETA"
+ADMIN_SECRET = os.getenv("ADMIN_SECRET")
 
+
+from app.schemas import UserCreate
+from fastapi import Body
 
 @app.post("/admin/create-user")
 async def create_user_admin(
-    email: str,
-    password: str,
-    admin_secret: str,
+    email: str = Body(...),
+    admin_secret: str = Body(...),
     user_manager=Depends(get_user_manager),
 ):
     if admin_secret != ADMIN_SECRET:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    try:
-        user = await user_manager.create(
-            {
-                "email": email,
-                "password": password,
-                "is_active": True,
-                "is_verified": True,
-            }
-        )
-        return {"status": "created", "email": user.email}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    user_create = UserCreate(
+        email=email,
+        password="DefaultPass123",
+        is_active=True,
+        is_verified=True,
+    )
+
+    user = await user_manager.create(user_create)
+
+    await user_manager.forgot_password(user)
+
+
+
+
+    return {"status": "created", "email": user.email}
+

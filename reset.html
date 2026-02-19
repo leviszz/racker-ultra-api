@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Reset Password</title>
+</head>
+<body>
+  <h2>Definir nova senha</h2>
+
+  <input type="password" id="password" placeholder="Nova senha" />
+  <button onclick="resetPassword()">Alterar senha</button>
+
+  <p id="msg"></p>
+
+  <script>
+    function getToken() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get("token");
+    }
+
+    async function resetPassword() {
+      const token = getToken();
+      const password = document.getElementById("password").value;
+
+      const response = await fetch("http://localhost:8000/auth/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          token: token,
+          password: password
+        })
+      });
+
+      if (response.ok) {
+        document.getElementById("msg").innerText = "Senha alterada com sucesso!";
+      } else {
+        document.getElementById("msg").innerText = "Erro ao alterar senha.";
+      }
+    }
+  </script>
+</body>
+</html>

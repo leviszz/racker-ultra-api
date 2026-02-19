@@ -1,3 +1,10 @@
+from fastapi import Depends
+from app.users import fastapi_users
+from app.models import User
+
+current_active_user = fastapi_users.current_user(active=True)
+
+
 import requests
 import pandas as pd
 from dataclasses import dataclass, field
@@ -5,6 +12,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from requests.adapters import HTTPAdapter
 from fastapi import APIRouter
 import warnings
+
+
 
 warnings.filterwarnings("ignore")
 
@@ -108,7 +117,8 @@ def analyze_symbol(sym, c_map):
 
 
 @router.get("/scan")
-def scan():
+async def scan(user: User = Depends(current_active_user)):
+
     ticker = get_json(f"{BASE_URL}/openApi/swap/v2/quote/ticker").get("data", [])
     if not ticker:
         return {"total": 0, "resultados": []}

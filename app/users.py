@@ -13,8 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_async_session
 from app.models import User
+from app.email import send_reset_email
 
-SECRET = "SUPER_SECRET_CHANGE_THIS"
+
+SECRET = "a_super_long_secret_key_at_least_32_characters_long_123456"
 
 
 # ================= USER MANAGER ================= #
@@ -23,6 +25,23 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     reset_password_token_secret = SECRET
     verification_token_secret = SECRET
 
+
+
+    async def on_after_forgot_password(
+        self, user: User, token: str, request=None
+    ):
+        await send_reset_email(user.email, token)
+
+
+    async def on_after_request_verify(
+        self, user: User, token: str, request=None
+    ):
+        print("===================================")
+        print(f"VERIFY TOKEN PARA {user.email}")
+        print(f"TOKEN: {token}")
+        print("===================================")
+
+# ================= DATABASE ================= #
 
 async def get_user_db(session: AsyncSession = Depends(get_async_session)):
     yield SQLAlchemyUserDatabase(session, User)
@@ -48,9 +67,14 @@ auth_backend = AuthenticationBackend(
 )
 
 
+
 fastapi_users = FastAPIUsers[User, uuid.UUID](
     get_user_manager,
     [auth_backend],
 )
+
+
+
+
 
 current_active_user = fastapi_users.current_user(active=True)
