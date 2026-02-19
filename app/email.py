@@ -1,40 +1,42 @@
 import os
-import aiosmtplib
-from email.message import EmailMessage
+import resend
 
-SMTP_HOST = "smtp.gmail.com"
-SMTP_PORT = 587
-SMTP_USER = os.getenv("EMAIL_USER")
-SMTP_PASS = os.getenv("EMAIL_PASS")
+# Puxa a chave da API que você configurou no Render/Local
+resend.api_key = os.getenv("RESEND_API_KEY")
 
+async def send_reset_email(email: str, token: str):
+    """
+    Função para enviar o email de redefinição de senha usando Resend.
+    """
+    
+    # IMPORTANTE: Enquanto você não tiver um domínio próprio comprado, 
+    # o Resend exige que o remetente seja exatamente este abaixo:
+    sender = "onboarding@resend.dev"
+    
+    # URL do seu frontend (Atualize para a URL da Vercel quando for testar em produção)
+    reset_link = f"http://localhost:5173/reset-password?token={token}"
 
-async def send_reset_email(to_email: str, token: str):
-    reset_link = f"http://127.0.0.1:5500/reset.html?token={token}"
+    params = {
+        "from": sender,
+        # ATENÇÃO: Na conta gratuita sem domínio, você SÓ PODE enviar emails para 
+        # o seu próprio email (o mesmo que você usou para criar a conta no Resend).
+        "to": [email], 
+        "subject": "Redefinição de Senha - Racker Ultra",
+        "html": f"""
+        <h2>Recuperação de Conta</h2>
+        <p>Você solicitou a redefinição da sua senha.</p>
+        <p>Clique no link abaixo para criar uma nova senha:</p>
+        <a href='{reset_link}'>Redefinir Minha Senha</a>
+        <br><br>
+        <p>Se você não solicitou isso, apenas ignore este email.</p>
+        """
+    }
 
-    message = EmailMessage()
-    message["From"] = SMTP_USER
-    message["To"] = to_email
-    message["Subject"] = "Defina sua senha"
-
-    message.set_content(
-        f"""
-Olá,
-
-Você foi cadastrado no V-BOSS Racker.
-
-Clique no link abaixo para definir sua senha:
-
-{reset_link}
-
-Se você não solicitou isso, ignore este email.
-"""
-    )
-
-    await aiosmtplib.send(
-        message,
-        hostname=SMTP_HOST,
-        port=SMTP_PORT,
-        start_tls=True,
-        username=SMTP_USER,
-        password=SMTP_PASS,
-    )
+    try:
+        # Envia o email
+        email_response = resend.Emails.send(params)
+        print("Email enviado com sucesso:", email_response)
+        return True
+    except Exception as e:
+        print("Erro ao enviar email:", e)
+        return False
