@@ -8,3 +8,4 @@ asyncpg
 fastapi-users[sqlalchemy]
 passlib[bcrypt]
 python-jose
+aiosmtplib

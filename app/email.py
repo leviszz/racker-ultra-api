@@ -20,7 +20,7 @@ async def send_reset_email(to_email: str, token: str):
         f"""
 Olá,
 
-Você foi cadastrado no Racker Ultra.
+Você foi cadastrado no V-BOSS Racker.
 
 Clique no link abaixo para definir sua senha:
 
