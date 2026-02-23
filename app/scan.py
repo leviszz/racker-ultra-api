@@ -27,7 +27,7 @@ class Config:
     EMA_SLOW: int = 50
     MA_TREND: int = 200
     SCAN_TFS: dict = field(default_factory=lambda: {
-        "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400
+        "5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "4h": 14400, "1 semana": 604800, "1 mês": 2592000, "6 meses": 15552000, "1 ano": 31536000
     })
     TOP_BY_VOLUME: int = 250
     WORKERS: int = 60
