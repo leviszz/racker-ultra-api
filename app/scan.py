@@ -80,7 +80,7 @@ def build_monthly_from_daily(symbol):
     df["time"] = pd.to_datetime(df["time"], unit="ms")
     df = df.set_index("time")
 
-    monthly = df.resample("M").agg({
+    monthly = df.resample("ME").agg({
         "open": "first",
         "high": "max",
         "low": "min",
