@@ -101,7 +101,7 @@ def build_yearly_from_weekly(symbol):
     df["time"] = pd.to_datetime(df["time"], unit="ms")
     df = df.set_index("time")
 
-    yearly = df.resample("Y").agg({
+    yearly = df.resample("YE").agg({
         "open": "first",
         "high": "max",
         "low": "min",
