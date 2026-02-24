@@ -12,9 +12,17 @@ import os
 
 app = FastAPI(title="Racker Ultra PRO Turbo", version="17.0")
 
+origins = [
+    "http://localhost:5173",
+    "https://www.vbossracker.com",
+    "https://vbossracker.com",
+]
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
