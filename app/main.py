@@ -1,3 +1,5 @@
+from app.scan import scan_loop
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.schemas import UserRead, UserCreate, UserUpdate
@@ -7,7 +9,6 @@ from app.users import fastapi_users, auth_backend
 from app.models import User
 
 from app.db import engine, Base
-import asyncio
 import os
 
 app = FastAPI(title="Racker Ultra PRO Turbo", version="17.0")
@@ -68,8 +69,12 @@ app.include_router(
 
 @app.on_event("startup")
 async def on_startup():
+    # cria tabelas
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # inicia loop automático do scanner
+    asyncio.create_task(scan_loop())
 
 
 

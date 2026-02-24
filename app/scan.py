@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from requests.adapters import HTTPAdapter
 import warnings
+import asyncio
+from datetime import datetime
 
 warnings.filterwarnings("ignore")
 
@@ -14,6 +16,7 @@ router = APIRouter()
 current_active_user = fastapi_users.current_user(active=True)
 
 # ================= CONFIG ================= #
+
 @dataclass
 class Config:
     EMA_FAST: int = 9
@@ -27,13 +30,12 @@ class Config:
     SCAN_TFS: list = field(default_factory=lambda: [
         "5m", "15m", "30m", "1h", "4h",
         "1d", "1w",
-        "1M",  # mensal sintético
-        "1Y"   # anual sintético
+        "1M",
+        "1Y"
     ])
 
 CFG = Config()
 
-# ================= TRADUÇÃO VISUAL ================= #
 TF_LABELS = {
     "5m": "5 Minutos",
     "15m": "15 Minutos",
@@ -51,6 +53,11 @@ BASE_URL = "https://open-api.bingx.com"
 SESSION = requests.Session()
 adapter = HTTPAdapter(pool_connections=CFG.WORKERS, pool_maxsize=CFG.WORKERS)
 SESSION.mount("https://", adapter)
+
+# ================= CACHE GLOBAL ================= #
+
+LATEST_RESULTS = []
+LAST_UPDATE = None
 
 # ================= CORE ================= #
 
@@ -116,7 +123,6 @@ def build_yearly_from_weekly(symbol):
 # ================= LÓGICA ================= #
 
 def analyze_logic(ks, tf):
-
     if not ks or len(ks) < 50:
         return None
 
@@ -129,14 +135,8 @@ def analyze_logic(ks, tf):
     e21 = close.ewm(span=CFG.EMA_MID, adjust=False).mean()
     e50 = close.ewm(span=CFG.EMA_SLOW, adjust=False).mean()
 
-    ma_period = min(CFG.MA_TREND, len(df))
-    ma200 = close.rolling(ma_period).mean()
-
     idx = len(df) - 1
     price = close.iloc[idx]
-
-    if pd.isna(ma200.iloc[idx]):
-        return None
 
     efeito = None
 
@@ -150,7 +150,6 @@ def analyze_logic(ks, tf):
     if not efeito:
         return None
 
-    # Candle Pilha
     pilha = "---"
     o, h, l, c = df.iloc[idx][["open","high","low","close"]]
     if (h - l) > 0 and (o > c):
@@ -169,11 +168,9 @@ def analyze_logic(ks, tf):
 # ================= ANALISAR PAR ================= #
 
 def analyze_symbol(sym, c_map):
-
     results = []
 
     for tf in CFG.SCAN_TFS:
-
         if tf == "1M":
             ks = build_monthly_from_daily(sym)
         elif tf == "1Y":
@@ -185,26 +182,23 @@ def analyze_symbol(sym, c_map):
 
         if res:
             results.append({
-            "par": sym.replace("-USDT", ""),
-            "sinal": res["efeito"],
-            "tf": TF_LABELS.get(tf, tf),
-            "suporte": res["perigo"],
-            "pilha": res["pilha"],
-            "variacao": f"{float(c_map.get(sym,0)):.2f}%",
-            "binance": binance_url(sym)
-        })
-            
+                "par": sym.replace("-USDT", ""),
+                "sinal": res["efeito"],
+                "tf": TF_LABELS.get(tf, tf),
+                "suporte": res["perigo"],
+                "pilha": res["pilha"],
+                "variacao": f"{float(c_map.get(sym,0)):.2f}%",
+                "binance": binance_url(sym)
+            })
 
     return results
 
-# ================= ENDPOINT ================= #
+# ================= SCAN COMPLETO ================= #
 
-@router.get("/scan")
-async def scan(user: User = Depends(current_active_user)):
-
+def run_full_scan():
     ticker = get_json(f"{BASE_URL}/openApi/swap/v2/quote/ticker").get("data", [])
     if not ticker:
-        return {"total": 0, "resultados": []}
+        return []
 
     c_map = {x["symbol"]: x.get("priceChangePercent", 0) for x in ticker}
     syms = [x["symbol"] for x in ticker if x["symbol"].endswith("-USDT")][:CFG.TOP_BY_VOLUME]
@@ -218,4 +212,30 @@ async def scan(user: User = Depends(current_active_user)):
             if r:
                 results.extend(r)
 
-    return {"total": len(results), "resultados": results}
+    return results
+
+# ================= LOOP AUTOMÁTICO ================= #
+
+async def scan_loop():
+    global LATEST_RESULTS, LAST_UPDATE
+
+    while True:
+        try:
+            print("Rodando scan automático...")
+            LATEST_RESULTS = run_full_scan()
+            LAST_UPDATE = datetime.utcnow()
+            print("Scan finalizado.")
+        except Exception as e:
+            print("Erro no scan:", e)
+
+        await asyncio.sleep(300)
+
+# ================= ENDPOINT ================= #
+
+@router.get("/scan")
+async def scan(user: User = Depends(current_active_user)):
+    return {
+        "total": len(LATEST_RESULTS),
+        "resultados": LATEST_RESULTS,
+        "ultima_atualizacao": LAST_UPDATE
+    }
