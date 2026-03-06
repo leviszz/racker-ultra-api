@@ -9,6 +9,14 @@ from requests.adapters import HTTPAdapter
 import warnings
 import asyncio
 from datetime import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.db import AsyncSessionLocal
+from app.models import UserClick  # O que criamos no passo anterior
+
+async def get_async_db():
+    async with AsyncSessionLocal() as session:
+        yield session
+
 
 warnings.filterwarnings("ignore")
 
@@ -232,10 +240,45 @@ async def scan_loop():
 
 # ================= ENDPOINT ================= #
 
+
+
+# ================= ENDPOINT ================= #
+
 @router.get("/scan")
-async def scan(user: User = Depends(current_active_user)):
+async def scan(
+    user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_async_db) # Injeta o banco aqui
+):
+    # --- REGISTRO DO CLIQUE NO BANCO ---
+    try:
+        # Voltamos ao formato original que funciona no seu frontend!
+        # Salvamos o clique como "GERAL" para o dashboard não quebrar.
+        novo_clique = UserClick(user_id=user.id, coin="GERAL")
+        db.add(novo_clique)
+        await db.commit() 
+    except Exception as e:
+        print(f"Erro ao registrar clique: {e}")
+
+    # --- RETORNO ORIGINAL ---
     return {
         "total": len(LATEST_RESULTS),
         "resultados": LATEST_RESULTS,
         "ultima_atualizacao": LAST_UPDATE
     }
+
+# ================= ROTA PARA RASTREAR CLIQUES NAS MOEDAS ================= #
+@router.post("/track-coin/{moeda}")
+async def track_coin(
+    moeda: str,
+    user: User = Depends(current_active_user),
+    db: AsyncSession = Depends(get_async_db)
+):
+    try:
+        # Salva especificamente a sigla da moeda que o usuário clicou em "ABRIR"
+        novo_clique = UserClick(user_id=user.id, coin=moeda.upper())
+        db.add(novo_clique)
+        await db.commit()
+        return {"status": "sucesso", "moeda": moeda}
+    except Exception as e:
+        print(f"Erro ao registrar clique na moeda: {e}")
+        return {"status": "erro"}
