@@ -230,7 +230,12 @@ async def scan_loop():
     while True:
         try:
             print("Rodando scan automático...")
-            LATEST_RESULTS = run_full_scan()
+            
+            # A MÁGICA ACONTECE AQUI: 
+            # O 'asyncio.to_thread' joga o processo pesado para um núcleo isolado,
+            # deixando o FastAPI 100% livre para responder os seus alunos instantaneamente!
+            LATEST_RESULTS = await asyncio.to_thread(run_full_scan)
+            
             LAST_UPDATE = datetime.utcnow()
             print("Scan finalizado.")
         except Exception as e:
