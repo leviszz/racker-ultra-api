@@ -49,7 +49,7 @@ async def get_dashboard_stats(periodo: str = "hoje", user: User = Depends(curren
     async with AsyncSessionLocal() as db:
         hoje = date.today()
         
-        # 1. Lógica do Filtro de Tempo
+        # Filtro de tempo
         if periodo == "semana":
             data_limite = hoje - timedelta(days=7)
         elif periodo == "mes":
@@ -57,50 +57,36 @@ async def get_dashboard_stats(periodo: str = "hoje", user: User = Depends(curren
         elif periodo == "ano":
             data_limite = hoje - timedelta(days=365)
         else:
-            data_limite = hoje # "hoje" (apenas o dia atual)
+            data_limite = hoje
 
-        # Condição de filtro para usar nas consultas
         filtro_data = cast(UserClick.timestamp, Date) >= data_limite
 
-        # 2. Total de Requisições
-        # 2. Total de Requisições (Apenas cliques no botão verde de Scan)
+        # Métricas dos Cards
         q_total = select(func.count(UserClick.id)).where(filtro_data).where(UserClick.coin == "GERAL")
         res_total = await db.execute(q_total)
         total_cliques = res_total.scalar() or 0
 
-        # 3. Usuários Ativos (Que fizeram Scans)
         q_unicos = select(func.count(func.distinct(UserClick.user_id))).where(filtro_data).where(UserClick.coin == "GERAL")
         res_unicos = await db.execute(q_unicos)
         total_unicos = res_unicos.scalar() or 0
 
-        # 4. Ranking de Usuários (Baseado na quantidade de Scans)
-        q_ranking = (
-            select(User.email, func.count(UserClick.id).label("contagem"))
-            .join(UserClick, User.id == UserClick.user_id)
-            .where(filtro_data)
-            .where(UserClick.coin == "GERAL") # <--- Garante que só os scans pontuam no ranking
-            .group_by(User.email)
-            .order_by(desc("contagem"))
-            .limit(10)
-        )
-        res_ranking = await db.execute(q_ranking)
-        ranking = [{"email": r[0], "cliques": r[1]} for r in res_ranking.all()]
-
-        # 5. NOVO: Moeda Mais Pesquisada (Mantém como fizemos antes, ignorando o "GERAL")
-        q_moeda = (
+        # --- RANKING TOP 5 MOEDAS (Para a nova seção do Frontend) ---
+        q_ranking_moedas = (
             select(UserClick.coin, func.count(UserClick.id).label("qtd"))
             .where(filtro_data)
+            .where(UserClick.coin != "GERAL") # Ignora cliques de scan geral
             .where(UserClick.coin.isnot(None))
-            .where(UserClick.coin != "GERAL") 
             .group_by(UserClick.coin)
             .order_by(desc("qtd"))
-            .limit(1)
+            .limit(5)
         )
-        res_moeda = await db.execute(q_moeda)
-        moeda_top_row = res_moeda.first()
-        moeda_top = moeda_top_row[0] if moeda_top_row else "N/A"
+        res_ranking_moedas = await db.execute(q_ranking_moedas)
+        # Formatado como 'moeda' e 'cliques' para bater com o seu .map()
+        ranking_moedas = [{"moeda": r[0], "cliques": r[1]} for r in res_ranking_moedas.all()]
 
-        # 6. Cálculo da Média
+        # Top Moeda (apenas o nome para o card)
+        moeda_top = ranking_moedas[0]["moeda"] if ranking_moedas else "N/A"
+
         media = round(total_cliques / total_unicos, 2) if total_unicos > 0 else 0
 
         return {
@@ -109,9 +95,9 @@ async def get_dashboard_stats(periodo: str = "hoje", user: User = Depends(curren
                 "total_requisicoes": total_cliques,
                 "usuarios_ativos": total_unicos,
                 "media_uso_por_usuario": media,
-                "moeda_top": moeda_top # Nova métrica enviada para o frontend
+                "moeda_top": moeda_top
             },
-            "ranking_usuarios": ranking
+            "ranking_moedas": ranking_moedas # Chave que o seu frontend vai ler
         }
 
 # Rota antiga de visualização simples (mantida para conferência)
