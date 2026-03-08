@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date, timedelta
 from sqlalchemy import text, select, func, cast, Date, desc
 
+
 # Imports do seu projeto
 from app.schemas import UserRead, UserCreate, UserUpdate
 from app.scan import router as scan_router
@@ -23,6 +24,13 @@ current_superuser = fastapi_users.current_user(active=True, superuser=True)
 
 # 1. Instância do FastAPI
 app = FastAPI(title="Racker Ultra PRO Turbo", version="17.0")
+
+@app.delete("/admin/reset-clicks")
+async def reset_clicks(user: User = Depends(current_superuser)):
+    async with AsyncSessionLocal() as db:
+        await db.execute(text("DELETE FROM user_clicks"))
+        await db.commit()
+        return {"status": "ok", "message": "Dados resetados"}
 
 @app.post("/admin/make-superuser")
 async def make_superuser(
