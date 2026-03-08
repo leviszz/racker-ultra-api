@@ -34,7 +34,7 @@ class Config:
     EMA_SLOW: int = 50
     MA_TREND: int = 200
 
-    TOP_BY_VOLUME: int = 250
+    TOP_BY_VOLUME: int = 150
     WORKERS: int = 20
     SUPORTE_BUFFER: float = 1.2
 
