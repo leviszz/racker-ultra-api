@@ -34,13 +34,12 @@ class Config:
     EMA_SLOW: int = 50
     MA_TREND: int = 200
 
-    TOP_BY_VOLUME: int = 150
+    TOP_BY_VOLUME: int = 250
     WORKERS: int = 20
     SUPORTE_BUFFER: float = 1.2
 
     SCAN_TFS: list = field(default_factory=lambda: [
-        "5m","15m","30m","1h","4h",
-        "1d","1w","1M","1Y"
+        "5m","15m","30m","1h","4h"
     ])
 
 CFG = Config()
@@ -94,7 +93,7 @@ def get_json(url, params=None):
 
 # ================= KLINES ================= #
 
-def fetch_klines(symbol, interval, limit=500):
+def fetch_klines(symbol, interval, limit=250):
 
     params = {
         "symbol": symbol,
@@ -192,11 +191,17 @@ def analyze_logic(ks, tf):
     e50 = close.ewm(span=CFG.EMA_SLOW, adjust=False).mean()
 
     ma200 = close.rolling(CFG.MA_TREND).mean()
+    for shift in range(3):
+        idx = len(df) - 1 - shift
 
-    idx = len(df) - 1
+
     price = close.iloc[idx]
 
     # filtro tendência
+
+    if pd.isna(ma200.iloc[idx]):
+        return None
+
     if price > ma200.iloc[idx]:
         return None
 
@@ -331,6 +336,8 @@ def run_full_scan():
             if r:
                 results.extend(r)
 
+    print("Resultados encontrados:", len(results))
+
     return results
 
 # ================= SCAN LOOP ================= #
@@ -355,7 +362,7 @@ async def scan_loop():
 
             print("Erro no scan:", e)
 
-        await asyncio.sleep(150)
+        await asyncio.sleep(300)
 
 # ================= ENDPOINT ================= #
 
