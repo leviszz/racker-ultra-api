@@ -237,16 +237,6 @@ def detect_pilha(df: pd.DataFrame) -> str:
             body_pct, avg_body_pct
         )
 
-        # 👇 Substitui o print antigo por este
-        if sc >= 70:
-            print(f"  [CANDIDATO] score={sc:.1f}")
-            print(f"    body_vs_range={body_vs_range:.3f} (min {CFG.MIN_BODY_VS_RANGE}) {'✅' if body_vs_range >= CFG.MIN_BODY_VS_RANGE else '❌'}")
-            print(f"    max_wick     ={max(w_up,w_dn):.3f} (max {CFG.MAX_WICK_EACH})  {'✅' if max(w_up,w_dn) <= CFG.MAX_WICK_EACH else '❌'}")
-            print(f"    w_total      ={w_total:.3f} (max {CFG.MAX_WICKS_TOTAL}) {'✅' if w_total <= CFG.MAX_WICKS_TOTAL else '❌'}")
-            print(f"    w_sym        ={w_sym:.3f} (min {CFG.MIN_WICK_SYM})  {'✅' if w_sym >= CFG.MIN_WICK_SYM else '❌'}")
-            print(f"    open_from_hi ={open_from_high:.3f} (max {CFG.MAX_OPEN_FROM_HIGH}) {'✅' if open_from_high <= CFG.MAX_OPEN_FROM_HIGH else '❌'}")
-            print(f"    close_from_lo={close_from_low:.3f} (max {CFG.MAX_CLOSE_FROM_LOW}) {'✅' if close_from_low <= CFG.MAX_CLOSE_FROM_LOW else '❌'}")
-            print(f"    body_pct     ={body_pct:.3f} (min {CFG.MIN_BODY_PCT_ABS}) {'✅' if body_pct >= CFG.MIN_BODY_PCT_ABS else '❌'}")
 
         ok = passes_rules(
             body_vs_range, w_up, w_dn, w_total,
@@ -348,14 +338,13 @@ def analyze_symbol(sym, c_map):
         if res:
             results.append({
                 "par":      sym.replace("-USDT", ""),
-                "sinal":    res["efeito"],
+                "sinal":    res["efeito"] or f"🔋 PILHA ({tf})",
                 "tf":       TF_LABELS.get(tf, tf),
                 "suporte":  res["perigo"],
                 "pilha":    res["pilha"],
                 "variacao": f"{float(c_map.get(sym, 0) or 0):.2f}%",
                 "binance":  binance_url(sym)
             })
-
     return results
 
 # ================= FULL SCAN ================= #
