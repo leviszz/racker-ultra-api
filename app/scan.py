@@ -168,11 +168,15 @@ def pile_metrics(o, h, l, cl):
 
 
 def passes_rules(body_vs_range, w_up, w_dn, w_total, w_sym, open_from_high, close_from_low, body_pct):
+    
+    # Se não há sombras, simetria não se aplica — candle é perfeito
+    sym_ok = (w_total < 1e-9) or (w_sym >= CFG.MIN_WICK_SYM)
+
     return (
         body_vs_range  >= CFG.MIN_BODY_VS_RANGE
         and max(w_up, w_dn) <= CFG.MAX_WICK_EACH
         and w_total        <= CFG.MAX_WICKS_TOTAL
-        and w_sym          >= CFG.MIN_WICK_SYM
+        and sym_ok                                  # ← substituiu w_sym >= MIN_WICK_SYM
         and open_from_high <= CFG.MAX_OPEN_FROM_HIGH
         and close_from_low <= CFG.MAX_CLOSE_FROM_LOW
         and body_pct       >= CFG.MIN_BODY_PCT_ABS
@@ -197,25 +201,11 @@ def score_pilha(body_vs_range, w_up, w_dn, w_sym, open_from_high, close_from_low
 
 
 def detect_pilha(df: pd.DataFrame) -> str:
-    """
-    Replica exatamente a lógica do scanner do chefe:
-
-    1. avg_body_pct calculado nas velas de referência:
-       janela = [-(LOOKBACK + LOOKBACK_SKIP) : -LOOKBACK_SKIP]
-       (ou seja, 25 velas, pulando as 6 mais recentes)
-
-    2. Candidatos testados: last_closed (índice -2) e prev_closed (índice -3)
-       — ambas já fechadas, nunca o candle em formação.
-
-    3. Retorna a tag da melhor vela (maior score) que passar nos critérios,
-       ou "---" se nenhuma passar.
-    """
     n = len(df)
     min_rows = CFG.LOOKBACK + CFG.LOOKBACK_SKIP + 4
     if n < min_rows:
         return "---"
 
-    # ── Média de referência (janela limpa, sem velas recentes) ──
     ref = df.iloc[-(CFG.LOOKBACK + CFG.LOOKBACK_SKIP) : -CFG.LOOKBACK_SKIP]
     body_pcts = [
         abs(row["open"] - row["close"]) / max(row["open"], 1e-12) * 100
@@ -223,19 +213,16 @@ def detect_pilha(df: pd.DataFrame) -> str:
     ]
     avg_body_pct = mean(body_pcts) if body_pcts else 0.0
 
-    # ── Candidatos: last_closed (-2) e prev_closed (-3) ──
     candidates = [df.iloc[-2], df.iloc[-3]]
-
     best_score = -1.0
     best_tag   = "---"
 
-    for candle in candidates:
+    for i, candle in enumerate(candidates):
         o  = float(candle["open"])
         h  = float(candle["high"])
         l  = float(candle["low"])
         cl = float(candle["close"])
 
-        # Pilha só conta em candle vermelho (SHORT)
         if cl >= o:
             continue
 
@@ -249,6 +236,18 @@ def detect_pilha(df: pd.DataFrame) -> str:
             open_from_high, close_from_low,
             body_pct, avg_body_pct
         )
+
+        # 👇 Substitui o print antigo por este
+        if sc >= 70:
+            print(f"  [CANDIDATO] score={sc:.1f}")
+            print(f"    body_vs_range={body_vs_range:.3f} (min {CFG.MIN_BODY_VS_RANGE}) {'✅' if body_vs_range >= CFG.MIN_BODY_VS_RANGE else '❌'}")
+            print(f"    max_wick     ={max(w_up,w_dn):.3f} (max {CFG.MAX_WICK_EACH})  {'✅' if max(w_up,w_dn) <= CFG.MAX_WICK_EACH else '❌'}")
+            print(f"    w_total      ={w_total:.3f} (max {CFG.MAX_WICKS_TOTAL}) {'✅' if w_total <= CFG.MAX_WICKS_TOTAL else '❌'}")
+            print(f"    w_sym        ={w_sym:.3f} (min {CFG.MIN_WICK_SYM})  {'✅' if w_sym >= CFG.MIN_WICK_SYM else '❌'}")
+            print(f"    open_from_hi ={open_from_high:.3f} (max {CFG.MAX_OPEN_FROM_HIGH}) {'✅' if open_from_high <= CFG.MAX_OPEN_FROM_HIGH else '❌'}")
+            print(f"    close_from_lo={close_from_low:.3f} (max {CFG.MAX_CLOSE_FROM_LOW}) {'✅' if close_from_low <= CFG.MAX_CLOSE_FROM_LOW else '❌'}")
+            print(f"    body_pct     ={body_pct:.3f} (min {CFG.MIN_BODY_PCT_ABS}) {'✅' if body_pct >= CFG.MIN_BODY_PCT_ABS else '❌'}")
+
         ok = passes_rules(
             body_vs_range, w_up, w_dn, w_total,
             w_sym, open_from_high, close_from_low,
@@ -257,7 +256,7 @@ def detect_pilha(df: pd.DataFrame) -> str:
 
         if ok and sc >= CFG.PILHA_THRESHOLD and sc > best_score:
             best_score = sc
-            best_tag   = f"🔋 PILHA"   # mantém padrão visual do frontend
+            best_tag   = "🔋 PILHA"
 
     return best_tag
 
