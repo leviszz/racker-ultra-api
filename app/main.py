@@ -8,19 +8,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date, timedelta
 from sqlalchemy import text, select, func, cast, Date, desc
 
-
 # Imports do seu projeto
 from app.schemas import UserRead, UserCreate, UserUpdate
 from app.scan import router as scan_router
 from app.users import fastapi_users, auth_backend, get_user_manager
-from app.models import User, UserClick # Adicionamos UserClick aqui
+from app.models import User, UserClick
 from app.db import engine, Base, AsyncSessionLocal
 
 current_superuser = fastapi_users.current_user(active=True, superuser=True)
-
-
-
-
+current_active_user = fastapi_users.current_user(active=True)
 
 # 1. Instância do FastAPI
 app = FastAPI(title="Racker Ultra PRO Turbo", version="17.0")
@@ -45,15 +41,12 @@ async def make_superuser(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Atualiza a flag de superuser
     await user_manager.update(UserUpdate(is_superuser=True), user)
     return {"status": "success", "message": f"{email} agora é um superuser!"}
 
 
-
-
 @app.get("/admin/dashboard-stats")
-async def get_dashboard_stats(periodo: str = "hoje", user: User = Depends(current_superuser)):
+async def get_dashboard_stats(periodo: str = "hoje", user: User = Depends(current_active_user)):
     async with AsyncSessionLocal() as db:
         hoje = date.today()
         
@@ -69,32 +62,43 @@ async def get_dashboard_stats(periodo: str = "hoje", user: User = Depends(curren
 
         filtro_data = cast(UserClick.timestamp, Date) >= data_limite
 
-        # Métricas dos Cards
+        # Total de scans (apenas cliques GERAL)
         q_total = select(func.count(UserClick.id)).where(filtro_data).where(UserClick.coin == "GERAL")
         res_total = await db.execute(q_total)
         total_cliques = res_total.scalar() or 0
 
+        # Usuários únicos
         q_unicos = select(func.count(func.distinct(UserClick.user_id))).where(filtro_data).where(UserClick.coin == "GERAL")
         res_unicos = await db.execute(q_unicos)
         total_unicos = res_unicos.scalar() or 0
 
-        # --- RANKING TOP 5 MOEDAS (Para a nova seção do Frontend) ---
+        # Ranking top 5 moedas
         q_ranking_moedas = (
             select(UserClick.coin, func.count(UserClick.id).label("qtd"))
             .where(filtro_data)
-            .where(UserClick.coin != "GERAL") # Ignora cliques de scan geral
+            .where(UserClick.coin != "GERAL")
             .where(UserClick.coin.isnot(None))
             .group_by(UserClick.coin)
             .order_by(desc("qtd"))
             .limit(5)
         )
         res_ranking_moedas = await db.execute(q_ranking_moedas)
-        # Formatado como 'moeda' e 'cliques' para bater com o seu .map()
         ranking_moedas = [{"moeda": r[0], "cliques": r[1]} for r in res_ranking_moedas.all()]
 
-        # Top Moeda (apenas o nome para o card)
-        moeda_top = ranking_moedas[0]["moeda"] if ranking_moedas else "N/A"
+        # ✅ Ranking top 10 usuários por scans (GERAL)
+        q_ranking_usuarios = (
+            select(User.email, func.count(UserClick.id).label("qtd"))
+            .join(User, User.id == UserClick.user_id)
+            .where(filtro_data)
+            .where(UserClick.coin == "GERAL")
+            .group_by(User.email)
+            .order_by(desc("qtd"))
+            .limit(10)
+        )
+        res_ranking_usuarios = await db.execute(q_ranking_usuarios)
+        ranking_usuarios = [{"email": r[0], "cliques": r[1]} for r in res_ranking_usuarios.all()]
 
+        moeda_top = ranking_moedas[0]["moeda"] if ranking_moedas else "N/A"
         media = round(total_cliques / total_unicos, 2) if total_unicos > 0 else 0
 
         return {
@@ -105,12 +109,14 @@ async def get_dashboard_stats(periodo: str = "hoje", user: User = Depends(curren
                 "media_uso_por_usuario": media,
                 "moeda_top": moeda_top
             },
-            "ranking_moedas": ranking_moedas # Chave que o seu frontend vai ler
+            "ranking_moedas": ranking_moedas,
+            "ranking_usuarios": ranking_usuarios  # ✅ agora existe
         }
 
-# Rota antiga de visualização simples (mantida para conferência)
+
+# Rota antiga de visualização simples
 @app.get("/admin/ver-cliques")
-async def ver_cliques(user: User = Depends(current_superuser)): # Dependência adicionada aqui
+async def ver_cliques(user: User = Depends(current_superuser)):
     async with AsyncSessionLocal() as session:
         query = text("SELECT id, user_id, timestamp FROM user_clicks ORDER BY timestamp DESC LIMIT 10")
         result = await session.execute(query)
@@ -121,10 +127,11 @@ async def ver_cliques(user: User = Depends(current_superuser)): # Dependência a
             "dados": [dict(row._mapping) for row in cliques]
         }
 
+
 # --- CONFIGURAÇÕES DE MIDDLEWARE ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Ajuste conforme sua necessidade de segurança
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
